@@ -7,6 +7,5 @@ data class Related(
         var countMes : Int,
         var writeThis : ByteBuffer,
         var readThis : ByteBuffer,
-        var readedNum : Int = 0,
         val connectionNum : Int
 )

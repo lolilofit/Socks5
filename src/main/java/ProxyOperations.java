@@ -8,7 +8,6 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 
@@ -133,7 +132,7 @@ public class ProxyOperations {
         }
         //if datagram
         if(udpClient != null) {
-            connectWithDomainName(key, related);
+            connectWithDomainName(related);
             return;
         }
         if(related.getCountMes() == 0 && related.isClient()) {
@@ -172,7 +171,7 @@ public class ProxyOperations {
     }
 
 
-    private void connectWithDomainName(SelectionKey key, Related related) {
+    private void connectWithDomainName(Related related) {
         byte[] array  = related.getReadThis().array();
         try {
             Message message = new Message(array);
@@ -347,17 +346,21 @@ public class ProxyOperations {
              related.getRelatedChanel().interestOps(0);
              key.interestOps(0);
              try {
+                 if(key.channel() instanceof  SocketChannel)
+                    ((SocketChannel)key.channel()).socket().close();
                  key.channel().close();
              } catch (IOException e) {
                  e.printStackTrace();
              }
              try {
+                 if(related.getRelatedChanel().channel() instanceof  SocketChannel)
+                    ((SocketChannel)related.getRelatedChanel().channel()).socket().close();
                  related.getRelatedChanel().channel().close();
              } catch (IOException e) {
                  e.printStackTrace();
              }
-             related.getRelatedChanel().cancel();
-             key.cancel();
+            // related.getRelatedChanel().cancel();
+            // key.cancel();
          }
          else {
              if(related.getRelatedChanel() != null) {
@@ -369,8 +372,8 @@ public class ProxyOperations {
                  }
                  related.getRelatedChanel().cancel();
                  related.setRelatedChanel(null);
-                 key.interestOps(SelectionKey.OP_WRITE);
              }
+             key.interestOps(SelectionKey.OP_WRITE);
          }
 
     }

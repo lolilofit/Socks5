@@ -1,7 +1,10 @@
 import org.xbill.DNS.*;
 
 import java.io.IOException;
-import java.net.*;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
@@ -11,7 +14,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 
-public class ProxyOperations {
+class ProxyOperations {
     private class ResolvePair {
         SelectionKey key;
         byte[] connectingPort;
@@ -49,7 +52,6 @@ public class ProxyOperations {
 
         byte[] name = Arrays.copyOfRange(array, 5, array[4] + 5);
         int portPos = (array[4] + 5);
-        //int port = (0xFF & array[portPos]) * 256 +  (0xFF & array[portPos + 1]);
         byte[] port = {array[portPos], array[portPos+1]};
         ResolvePair resolvePair = new ResolvePair(key, port, new String(name));
         stotedPairs.put(dnsMesId, resolvePair);
@@ -74,7 +76,6 @@ public class ProxyOperations {
             ByteBuffer sendThis = ByteBuffer.allocate(data.length);
             sendThis.clear();
             sendThis.put(data);
-            //sendThis.flip();
             sendThis.rewind();
 
             (dnsResolveChannel).send(sendThis, new InetSocketAddress(dnsServers[0], 53));
@@ -136,7 +137,7 @@ public class ProxyOperations {
             return;
         }
         if(related.getCountMes() == 0 && related.isClient()) {
-            firstMessage(key, related);
+            firstMessageRead(key, related);
             return;
         }
         if(related.getCountMes() == 1 && related.isClient()) {
@@ -150,16 +151,6 @@ public class ProxyOperations {
     private void transfer(SelectionKey key, Related related) {
         System.out.println(related.getConnectionNum() + " transfer ");
         related.getReadThis().flip();
-
-        /*
-        try {
-            ((SocketChannel)related.getRelatedChanel().channel()).write(related.getReadThis());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        key.interestOps(SelectionKey.OP_READ);
-        related.getRelatedChanel().interestOps(SelectionKey.OP_READ);
-        */
 
         Related relatedCli = (Related) related.getRelatedChanel().attachment();
         if(relatedCli != null) {
@@ -284,7 +275,6 @@ public class ProxyOperations {
         setNotSupportedAns(related, array);
         key.interestOps(SelectionKey.OP_WRITE);
         related.getRelatedChanel().interestOps(0);
-        //send bad ans
     }
 
     void connect(SelectionKey key) {
@@ -315,25 +305,16 @@ public class ProxyOperations {
         }
     }
 
-        private void firstMessage(SelectionKey key, Related realted) {
-            byte[] array = realted.getReadThis().array();
+        private void firstMessageRead(SelectionKey key, Related related) {
+            byte[] array = related.getReadThis().array();
             if (array[0] != 5) {
-                System.out.println(realted.getConnectionNum() + "Unsupported socks version");
+                System.out.println(related.getConnectionNum() + "Unsupported socks version");
             }
-            realted.setCountMes(1);
+            related.setCountMes(1);
             byte[] immediateAnswer = {5, 0};
-            SocketChannel channel = (SocketChannel) key.channel();
             ByteBuffer writeThis = ByteBuffer.wrap(immediateAnswer);
-
-            try {
-                if (channel.write(writeThis) == -1) {
-                    System.out.println("couldn't erite in first mes (fix it)");
-                    closeChanel(key);
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-                closeChanel(key);
-            }
+            related.setWriteThis(writeThis);
+            key.interestOps(SelectionKey.OP_WRITE);
         }
 
 
@@ -359,8 +340,6 @@ public class ProxyOperations {
              } catch (IOException e) {
                  e.printStackTrace();
              }
-            // related.getRelatedChanel().cancel();
-            // key.cancel();
          }
          else {
              if(related.getRelatedChanel() != null) {
@@ -373,7 +352,7 @@ public class ProxyOperations {
                  related.getRelatedChanel().cancel();
                  related.setRelatedChanel(null);
              }
-             key.interestOps(SelectionKey.OP_WRITE);
+             else {finalClose(key);}
          }
 
     }
@@ -381,8 +360,10 @@ public class ProxyOperations {
     private void finalClose(SelectionKey key) {
         try {
             key.interestOps(0);
+            if(key.channel() instanceof  SocketChannel)
+                ((SocketChannel)key.channel()).socket().close();
             key.channel().close();
-            key.cancel();
+            //key.cancel();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -415,11 +396,8 @@ public class ProxyOperations {
         related.getWriteThis().clear();
         if (related.getRelatedChanel() != null) {
             related.getRelatedChanel().interestOps(SelectionKey.OP_READ);
-            key.interestOps(SelectionKey.OP_READ);
         }
-        else {
-            finalClose(key);
-        }
+        key.interestOps(SelectionKey.OP_READ);
     }
 
 

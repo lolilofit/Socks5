@@ -309,6 +309,7 @@ class ProxyOperations {
             byte[] array = related.getReadThis().array();
             if (array[0] != 5) {
                 System.out.println(related.getConnectionNum() + "Unsupported socks version");
+                return;
             }
             related.setCountMes(1);
             byte[] immediateAnswer = {5, 0};
